@@ -121,3 +121,7 @@ GitHubの **Actions → 対象の実行 → Post to X** でログを確認しま
 ├── requirements.txt                 # Python依存パッケージ
 └── tests/test_post_to_x.py          # APIを呼ばない単体テスト
 ```
+
+## X認証診断
+
+GitHub Actions の「Run workflow」で `x_auth_diagnostic=true`（安全のため `ai_dry_run=true` も選択）を指定すると、`GET /2/users/me` のみ実行します。Gemini生成、X投稿、履歴、state更新は行いません。HTTP 200はOAuth有効、401はSecrets不一致または無効、403はApp権限・アカウント制限の確認が必要です。

@@ -19,6 +19,7 @@ from requests_oauthlib import OAuth1
 
 
 API_URL = "https://api.x.com/2/tweets"
+USERS_ME_URL = "https://api.x.com/2/users/me"
 BASE_DIR = Path(__file__).resolve().parent
 POSTS_FILE = BASE_DIR / "posts.txt"
 STATE_FILE = BASE_DIR / ".state" / "last_post.sha256"
@@ -201,6 +202,27 @@ def publish_post(
     return str(post_id)
 
 
+def diagnose_x_auth(credentials: Mapping[str, str], session: requests.Session | None = None) -> bool:
+    auth = OAuth1(credentials["X_API_KEY"], credentials["X_API_SECRET"], credentials["X_ACCESS_TOKEN"], credentials["X_ACCESS_TOKEN_SECRET"])
+    client = session or requests.Session()
+    try:
+        response = client.get(USERS_ME_URL, auth=auth, timeout=REQUEST_TIMEOUT_SECONDS)
+    except requests.RequestException as exc:
+        LOG.error("X認証診断の接続に失敗しました: %s", redact(str(exc), credentials)); return False
+    try: payload = response.json()
+    except (ValueError, TypeError): payload = {}
+    if response.status_code == 200:
+        data = payload.get("data", {})
+        LOG.info("X認証診断: HTTP 200, user_id=%s, username=%s", data.get("id", "不明"), data.get("username", "不明"))
+        LOG.info("OAuth認証は有効です。POST /2/tweetsだけ403の場合、書き込み権限・Xアカウント制限・App権限を確認してください。")
+        return True
+    error = payload.get("errors", [{}])[0] if isinstance(payload.get("errors"), list) else payload.get("error", {})
+    LOG.error("X認証診断: HTTP %s, title=%s, detail=%s, type=%s", response.status_code, error.get("title", "不明"), error.get("detail", "不明"), error.get("type", "不明"))
+    if response.status_code == 401: LOG.error("OAuth認証情報が無効または不一致です。4つのSecretsを再確認してください。")
+    elif response.status_code == 403: LOG.error("認証は認識されているが、この操作へのアクセスが拒否されています。App権限またはアカウント制限を確認してください。")
+    return False
+
+
 def save_last_digest(path: Path, digest: str) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -361,6 +383,8 @@ def main() -> int:
     configure_logging()
     try:
         credentials = load_credentials(os.environ)
+        if os.environ.get("X_AUTH_DIAGNOSTIC", "false").strip().lower() == "true":
+            return 0 if diagnose_x_auth(credentials) else 1
         generated, dry_run = choose_post(os.environ, datetime.now(ZoneInfo("Asia/Tokyo")))
         selected = SelectedPost(generated, 0, post_digest(generated))
         LOG.info("最終候補: characters=%d, sha256=%s", len(generated), selected.digest[:12])
