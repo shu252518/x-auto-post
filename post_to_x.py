@@ -31,7 +31,7 @@ REQUIRED_SECRETS = (
     "X_ACCESS_TOKEN_SECRET",
 )
 REQUEST_TIMEOUT_SECONDS = 30
-AI_MODEL = "gemini-2.5-flash-lite"
+AI_MODEL = "gemini-3.1-flash-lite"
 LOG = logging.getLogger("x_auto_post")
 
 
@@ -250,6 +250,16 @@ def too_similar(candidate: str, history: list[str], threshold: float = 0.78) -> 
     return False
 
 
+def gemini_error_message(response: requests.Response, api_key: str) -> str:
+    """Return only the safe API error message; never log the full response or key."""
+    try:
+        message = response.json().get("error", {}).get("message", "")
+    except (ValueError, TypeError, AttributeError):
+        message = ""
+    message = redact(str(message), {"GEMINI_API_KEY": api_key}).replace("\n", " ").strip()
+    return message[:500] if message else "詳細メッセージなし"
+
+
 def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None) -> str:
     prompt = (f"{period}向けの自然な日本語の短文を1件だけ作成してください。"
               "30〜100文字、宣伝なし、ハッシュタグなし、絵文字は最大1個。"
@@ -261,7 +271,7 @@ def generate_ai_post(period: str, api_key: str, history: list[str], session: req
         response = client.post(url, params={"key": api_key}, headers={"Content-Type": "application/json"},
                                json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8, "maxOutputTokens": 120}}, timeout=REQUEST_TIMEOUT_SECONDS)
         if response.status_code != 200:
-            raise AutoPostError(f"Gemini APIエラー: HTTP {response.status_code}")
+            raise AutoPostError(f"Gemini APIエラー: HTTP {response.status_code}, message={gemini_error_message(response, api_key)}")
         payload = response.json()
         text = payload["candidates"][0]["content"]["parts"][0]["text"].strip()
         if not text or not (30 <= len(text) <= 100) or too_similar(text, history):

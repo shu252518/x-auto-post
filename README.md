@@ -38,7 +38,7 @@ GitHubリポジトリの **Settings → Secrets and variables → Actions → Ne
 
 ## AI投稿（安全な段階導入）
 
-GitHub Actionsは既定で `AI_DRY_RUN=true` として動作します。朝・昼・夜の時間帯に合わせてGemini API（`gemini-2.5-flash-lite`）で30〜100文字の日本語文を生成し、直近30件の履歴と完全一致・類似度を確認します。最大3回再生成しても条件に合わない場合やAI APIが失敗した場合は、`posts.txt`の固定文へフォールバックします。AIレスポンス全文やキーはログへ出しません。
+GitHub Actionsは既定で `AI_DRY_RUN=true` として動作します。朝・昼・夜の時間帯に合わせてGemini API（`gemini-3.1-flash-lite`）で30〜100文字の日本語文を生成し、直近30件の履歴と完全一致・類似度を確認します。最大3回再生成しても条件に合わない場合やAI APIが失敗した場合は、`posts.txt`の固定文へフォールバックします。AIレスポンス全文やキーはログへ出しません。
 
 手動dry-runは **Actions → Post to X → Run workflow** で `ai_dry_run=true` のまま実行します。最終候補だけがログに表示され、Xへは投稿しません。実投稿へ切り替える場合は `ai_dry_run=false` を選びます。スケジュール実行は常にdry-runです。
 

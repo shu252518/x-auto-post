@@ -105,12 +105,19 @@ class AiTests(unittest.TestCase):
 
     def test_ai_failure_falls_back_to_fixed(self):
         response = Mock(status_code=500)
+        response.json.return_value = {"error": {"message": "model unavailable for key secret"}}
         session = Mock(); session.post.return_value = response
         with tempfile.TemporaryDirectory() as directory, patch.object(post_to_x, "POSTS_FILE", Path(directory) / "posts.txt"), patch.object(post_to_x, "HISTORY_FILE", Path(directory) / "history.json"):
             post_to_x.POSTS_FILE.write_text("固定の投稿文です。今日も無理せず過ごします。\n", encoding="utf-8")
             text, dry = post_to_x.choose_post({"GEMINI_API_KEY": "key", "AI_DRY_RUN": "true"}, datetime(2026, 1, 1, 8), session)
         self.assertEqual(text, "固定の投稿文です。今日も無理せず過ごします。")
         self.assertTrue(dry)
+
+    def test_gemini_error_message_is_reported_without_key(self):
+        response = Mock()
+        response.json.return_value = {"error": {"message": "bad key secret"}}
+        detail = post_to_x.gemini_error_message(response, "secret")
+        self.assertEqual(detail, "bad key ***")
 
     def test_dry_run_does_not_publish(self):
         with patch.object(post_to_x, "choose_post", return_value=("生成された投稿文です。安全な内容で確認します。", True)), patch.object(post_to_x, "publish_post") as publish:
