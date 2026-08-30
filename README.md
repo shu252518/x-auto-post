@@ -32,8 +32,17 @@ GitHubリポジトリの **Settings → Secrets and variables → Actions → Ne
 | `X_API_SECRET` | AppのAPI Key Secret |
 | `X_ACCESS_TOKEN` | 投稿対象ユーザーのAccess Token |
 | `X_ACCESS_TOKEN_SECRET` | 投稿対象ユーザーのAccess Token Secret |
+| `OPENAI_API_KEY` | AI投稿文生成用のOpenAI APIキー（AI利用時のみ） |
 
 認証情報を `posts.txt`、Pythonソース、ワークフローなどへ直接記載しないでください。
+
+## AI投稿（安全な段階導入）
+
+GitHub Actionsは既定で `AI_DRY_RUN=true` として動作します。朝・昼・夜の時間帯に合わせてOpenAI Responses APIで30〜100文字の日本語文を生成し、直近30件の履歴と完全一致・類似度を確認します。最大3回再生成しても条件に合わない場合やAI APIが失敗した場合は、`posts.txt`の固定文へフォールバックします。AIレスポンス全文やキーはログへ出しません。
+
+手動dry-runは **Actions → Post to X → Run workflow** で `ai_dry_run=true` のまま実行します。最終候補だけがログに表示され、Xへは投稿しません。実投稿へ切り替える場合は `ai_dry_run=false` を選びます。スケジュール実行は常にdry-runです。
+
+AIを使わず固定文だけで運用する場合は、`OPENAI_API_KEY`を登録せず、手動実行の`ai_dry_run=false`（または環境変数`AI_DRY_RUN=false`）で実行してください。AI生成を試みず、`posts.txt`から選択します。AI APIは呼び出しごとに利用料金が発生する可能性があるため、利用中のモデル・トークン量・アカウントの料金設定を確認してください。
 
 ## 3. 投稿文の編集
 
@@ -82,6 +91,7 @@ GitHubの **Actions → 対象の実行 → Post to X** でログを確認しま
 - `HTTP 403`: AppがRead and Writeではない、または利用プラン・ポリシー上の権限がありません。
 - `HTTP 429`: APIのレート制限または使用量上限です。ログのリセット時刻も確認します。
 - `別の投稿文がありません`: `posts.txt` に異なる文を2件以上追加します。
+- `AI APIエラー` / `AI生成を3回試行`: `OPENAI_API_KEY`、API利用枠、モデル利用可否を確認し、固定文フォールバックでの動作を確認します。
 
 通信タイムアウト後は、X側で投稿だけ成功している可能性があります。意図しない重複を避けるため自動再試行は行いません。X上の投稿状況を確認してから再実行してください。
 
@@ -90,7 +100,7 @@ GitHubの **Actions → 対象の実行 → Post to X** でログを確認しま
 ```text
 .
 ├── .github/workflows/post-to-x.yml  # 実行スケジュールとSecretsの受け渡し
-├── post_to_x.py                     # 選択、投稿、エラー処理、状態保存
+├── post_to_x.py                     # AI生成、固定文フォールバック、投稿、状態保存
 ├── posts.txt                        # 投稿候補（1行1投稿）
 ├── requirements.txt                 # Python依存パッケージ
 └── tests/test_post_to_x.py          # APIを呼ばない単体テスト

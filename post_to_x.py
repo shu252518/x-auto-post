@@ -22,6 +22,8 @@ API_URL = "https://api.x.com/2/tweets"
 BASE_DIR = Path(__file__).resolve().parent
 POSTS_FILE = BASE_DIR / "posts.txt"
 STATE_FILE = BASE_DIR / ".state" / "last_post.sha256"
+HISTORY_FILE = BASE_DIR / ".state" / "post_history.json"
+OPENAI_API_URL = "https://api.openai.com/v1/responses"
 REQUIRED_SECRETS = (
     "X_API_KEY",
     "X_API_SECRET",
@@ -29,6 +31,7 @@ REQUIRED_SECRETS = (
     "X_ACCESS_TOKEN_SECRET",
 )
 REQUEST_TIMEOUT_SECONDS = 30
+AI_MODEL = "gpt-4o-mini"
 LOG = logging.getLogger("x_auto_post")
 
 
@@ -208,22 +211,106 @@ def save_last_digest(path: Path, digest: str) -> None:
         ) from exc
 
 
+def posting_period(hour: int) -> str:
+    if 5 <= hour < 11:
+        return "朝"
+    if 11 <= hour < 17:
+        return "昼"
+    return "夜"
+
+
+def load_history(path: Path, limit: int = 30) -> list[str]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            return []
+        return [str(item) for item in data if isinstance(item, str)][-limit:]
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        return []
+
+
+def save_history(path: Path, text: str, limit: int = 30) -> None:
+    history = load_history(path, limit)
+    history.append(text)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(history[-limit:], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def too_similar(candidate: str, history: list[str], threshold: float = 0.78) -> bool:
+    normalized = set(candidate.replace(" ", ""))
+    if not normalized:
+        return True
+    for old in history:
+        if candidate == old:
+            return True
+        other = set(old.replace(" ", ""))
+        score = len(normalized & other) / max(len(normalized | other), 1)
+        if score >= threshold:
+            return True
+    return False
+
+
+def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None) -> str:
+    prompt = (f"{period}向けの自然な日本語の短文を1件だけ作成してください。"
+              "30〜100文字、宣伝なし、ハッシュタグなし、絵文字は最大1個。"
+              "政治・宗教・差別・攻撃・ニュース・日付曜日・医療投資の断定は禁止。"
+              "本文だけを返し、引用符や説明は付けないでください。")
+    client = session or requests.Session()
+    try:
+        response = client.post(OPENAI_API_URL, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                               json={"model": AI_MODEL, "input": prompt, "store": False}, timeout=REQUEST_TIMEOUT_SECONDS)
+        if response.status_code != 200:
+            raise AutoPostError(f"AI APIエラー: HTTP {response.status_code}")
+        payload = response.json()
+        text = payload.get("output_text", "").strip()
+        if not text:
+            for item in payload.get("output", []):
+                for content in item.get("content", []):
+                    if content.get("type") == "output_text":
+                        text = content.get("text", "").strip()
+                        break
+        if not text or not (30 <= len(text) <= 100) or too_similar(text, history):
+            raise AutoPostError("AI生成文が条件不適合または履歴と類似しています")
+        return text
+    except requests.RequestException as exc:
+        raise AutoPostError(f"AI APIへの接続に失敗しました: {type(exc).__name__}") from exc
+    except (ValueError, KeyError, TypeError) as exc:
+        raise AutoPostError("AI API応答の形式が不正です") from exc
+
+
+def choose_post(environment: Mapping[str, str], now: datetime, session: requests.Session | None = None) -> tuple[str, bool]:
+    posts = load_posts(POSTS_FILE)
+    history = load_history(HISTORY_FILE)
+    dry_run = environment.get("AI_DRY_RUN", "true").strip().lower() != "false"
+    api_key = environment.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        LOG.warning("OPENAI_API_KEYが未設定のため、固定文へフォールバックします")
+        last = post_digest(history[-1]) if history else None
+        return select_post(posts, last).text, dry_run
+    period = posting_period(now.hour)
+    for attempt in range(3):
+        try:
+            return generate_ai_post(period, api_key, history, session), dry_run
+        except AutoPostError as exc:
+            LOG.warning("AI生成%d回目に失敗: %s", attempt + 1, exc)
+    LOG.warning("AI生成を3回試行したため、固定文へフォールバックします")
+    last = post_digest(history[-1]) if history else None
+    return select_post(posts, last).text, dry_run
+
+
 def main() -> int:
     configure_logging()
     try:
         credentials = load_credentials(os.environ)
-        posts = load_posts(POSTS_FILE)
-        last_digest = load_last_digest(STATE_FILE)
-        selected = select_post(posts, last_digest)
-        LOG.info(
-            "投稿候補を選択しました: line=%d, characters=%d, sha256=%s",
-            selected.line_number,
-            len(selected.text),
-            selected.digest[:12],
-        )
-
+        generated, dry_run = choose_post(os.environ, datetime.now(ZoneInfo("Asia/Tokyo")))
+        selected = SelectedPost(generated, 0, post_digest(generated))
+        LOG.info("最終候補: characters=%d, sha256=%s", len(generated), selected.digest[:12])
+        if dry_run:
+            LOG.info("AI_DRY_RUN=true のためX投稿をスキップしました")
+            return 0
         post_id = publish_post(selected, credentials)
         save_last_digest(STATE_FILE, selected.digest)
+        save_history(HISTORY_FILE, generated)
         LOG.info("投稿に成功しました: post_id=%s", post_id)
         return 0
     except AutoPostError as exc:
