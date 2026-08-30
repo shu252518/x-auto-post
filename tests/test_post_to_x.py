@@ -96,12 +96,21 @@ class AiTests(unittest.TestCase):
         self.assertEqual(post_to_x.posting_period(12), "昼")
         self.assertEqual(post_to_x.posting_period(20), "夜")
 
+    def test_theme_selection_avoids_recent_theme(self):
+        theme = post_to_x.select_theme(["Python自動化で作業を短縮", "Excel効率化の小技"])
+        self.assertNotIn(theme, ("Python自動化", "Excel効率化"))
+
+    def test_quality_score_is_bounded_and_rewards_specific_hook(self):
+        score = post_to_x.quality_score("実はPythonで3つの定型作業を自動化できます。方法を試してみませんか？", "昼")
+        self.assertGreaterEqual(score, 70)
+        self.assertLessEqual(score, 100)
+
     def test_ai_generation_success(self):
         response = Mock(status_code=200)
-        response.json.return_value = {"candidates": [{"content": {"parts": [{"text": "朝の光を感じながら、できることを一つずつ丁寧に始める時間を大切にします。"}]}}]}
+        response.json.return_value = {"candidates": [{"content": {"parts": [{"text": "実は朝の5分で、今日の作業を3つに絞るだけで迷いが減ります。まず一番大事な仕事から始める方法を試してみませんか？"}]}}]}
         session = Mock(); session.post.return_value = response
         text = post_to_x.generate_ai_post("朝", "secret", [], session)
-        self.assertTrue(text.startswith("朝の"))
+        self.assertTrue(text.startswith("実は朝"))
 
     def test_ai_failure_falls_back_to_fixed(self):
         response = Mock(status_code=500)

@@ -32,6 +32,7 @@ REQUIRED_SECRETS = (
 )
 REQUEST_TIMEOUT_SECONDS = 30
 AI_MODEL = "gemini-3.1-flash-lite"
+THEMES = ("ChatGPT活用", "Gemini活用", "Excel効率化", "Python自動化", "GitHub Actions", "仕事の自動化", "資料作成効率化", "メール効率化", "会議効率化", "タスク管理", "AI時代の働き方")
 LOG = logging.getLogger("x_auto_post")
 
 
@@ -219,7 +220,7 @@ def posting_period(hour: int) -> str:
     return "夜"
 
 
-def load_history(path: Path, limit: int = 30) -> list[str]:
+def load_history(path: Path, limit: int = 100) -> list[str]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, list):
@@ -229,7 +230,7 @@ def load_history(path: Path, limit: int = 30) -> list[str]:
         return []
 
 
-def save_history(path: Path, text: str, limit: int = 30) -> None:
+def save_history(path: Path, text: str, limit: int = 100) -> None:
     history = load_history(path, limit)
     history.append(text)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -250,6 +251,21 @@ def too_similar(candidate: str, history: list[str], threshold: float = 0.78) -> 
     return False
 
 
+def select_theme(history: list[str]) -> str:
+    recent = history[-3:]
+    choices = [theme for theme in THEMES if not any(theme in text for text in recent)] or list(THEMES)
+    return secrets.choice(choices)
+
+
+def quality_score(text: str, period: str) -> int:
+    hook = 20 if any(mark in text[:35] for mark in ("？", "?", "なら", "実は", "意外", "知って")) else 12
+    value = 25 if any(mark in text for mark in ("手順", "方法", "具体", "使う", "減ら", "自動", "例")) else 12
+    specificity = 20 if any(char.isdigit() for char in text) or any(mark in text for mark in ("Excel", "Python", "AI", "GitHub", "メール")) else 10
+    natural = 15 if len(text) >= 45 and "することが重要です" not in text else 8
+    engagement = 20 if ("？" in text or "?" in text or "ありますか" in text) else 10
+    return min(100, hook + value + specificity + natural + engagement)
+
+
 def gemini_error_message(response: requests.Response, api_key: str) -> str:
     """Return only the safe API error message; never log the full response or key."""
     try:
@@ -260,10 +276,15 @@ def gemini_error_message(response: requests.Response, api_key: str) -> str:
     return message[:500] if message else "詳細メッセージなし"
 
 
-def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None) -> str:
-    prompt = (f"{period}向けの自然な日本語の短文を1件だけ作成してください。"
-              "30〜100文字、宣伝なし、ハッシュタグなし、絵文字は最大1個。"
+def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None, theme: str | None = None) -> str:
+    theme = theme or select_theme(history)
+    length = "40〜100文字" if period == "朝" else "70〜180文字"
+    prompt = (f"{period}向け、テーマは{theme}。専門家ぶりすぎず、実際にXで人間が投稿する自然な日本語を1件だけ作成してください。"
+              f"{length}、Hook→具体的なValueの構成。"
+              "宣伝なし、ハッシュタグなし、絵文字は最大1個。"
               "政治・宗教・差別・攻撃・ニュース・日付曜日・医療投資の断定は禁止。"
+              "朝は短い役立ち知識、昼は手順や具体例、夜は意見や自然な問いかけ。"
+              "中身のない挨拶、過度な煽り、架空の実績、実体験の偽装は禁止。"
               "本文だけを返し、引用符や説明は付けないでください。")
     client = session or requests.Session()
     try:
@@ -274,8 +295,12 @@ def generate_ai_post(period: str, api_key: str, history: list[str], session: req
             raise AutoPostError(f"Gemini APIエラー: HTTP {response.status_code}, message={gemini_error_message(response, api_key)}")
         payload = response.json()
         text = payload["candidates"][0]["content"]["parts"][0]["text"].strip()
-        if not text or not (30 <= len(text) <= 100) or too_similar(text, history):
+        max_length = 100 if period == "朝" else 180
+        if not text or not (40 <= len(text) <= max_length) or too_similar(text, history):
             raise AutoPostError("AI生成文が条件不適合または履歴と類似しています")
+        score = quality_score(text, period)
+        if score < 70:
+            raise AutoPostError(f"品質スコア不足: {score}")
         return text
     except requests.RequestException as exc:
         raise AutoPostError(f"AI APIへの接続に失敗しました: {type(exc).__name__}") from exc
@@ -287,20 +312,27 @@ def choose_post(environment: Mapping[str, str], now: datetime, session: requests
     posts = load_posts(POSTS_FILE)
     history = load_history(HISTORY_FILE)
     dry_run = environment.get("AI_DRY_RUN", "true").strip().lower() != "false"
+    period = posting_period(now.hour)
+    theme = select_theme(history)
     api_key = environment.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         LOG.warning("GEMINI_API_KEYが未設定のため、固定文へフォールバックします")
         last = post_digest(history[-1]) if history else None
-        return select_post(posts, last).text, dry_run
-    period = posting_period(now.hour)
+        fallback = select_post(posts, last).text
+        LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=n/a duplicate_check=fallback source=fallback", period, theme, len(fallback))
+        return fallback, dry_run
     for attempt in range(3):
         try:
-            return generate_ai_post(period, api_key, history, session), dry_run
+            text = generate_ai_post(period, api_key, history, session, theme)
+            LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=%d duplicate_check=pass source=ai", period, theme, len(text), quality_score(text, period))
+            return text, dry_run
         except AutoPostError as exc:
             LOG.warning("AI生成%d回目に失敗: %s", attempt + 1, exc)
     LOG.warning("AI生成を3回試行したため、固定文へフォールバックします")
     last = post_digest(history[-1]) if history else None
-    return select_post(posts, last).text, dry_run
+    fallback = select_post(posts, last).text
+    LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=n/a duplicate_check=fallback source=fallback", period, theme, len(fallback))
+    return fallback, dry_run
 
 
 def main() -> int:
