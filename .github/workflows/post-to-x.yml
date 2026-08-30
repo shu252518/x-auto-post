@@ -1,0 +1,61 @@
+name: Post to X
+
+on:
+  schedule:
+    - cron: "10 8,12,20 * * *"
+      timezone: "Asia/Tokyo"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: x-auto-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TZ: Asia/Tokyo
+      PYTHONUNBUFFERED: "1"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --requirement requirements.txt
+
+      - name: Restore last-post state
+        uses: actions/cache/restore@v5
+        with:
+          path: .state
+          key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            x-post-state-
+
+      - name: Post to X
+        id: post
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: python post_to_x.py
+
+      - name: Save last-post state
+        if: steps.post.outcome == 'success'
+        uses: actions/cache/save@v5
+        with:
+          path: .state
+          key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
