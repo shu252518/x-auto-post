@@ -57,7 +57,7 @@ jobs:
             x-post-state-
 
       - name: Restore canonical state branch
-        run: python state_branch.py restore
+        run: python state_branch.py restore || echo "state branch not found; starting with cache/empty state"
 
       - name: Post to X
         id: post
@@ -98,7 +98,7 @@ jobs:
           key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: x-post-state-
       - name: Restore canonical state branch
-        run: python state_branch.py restore
+        run: python state_branch.py restore || echo "state branch not found; starting with cache/empty state"
       - name: Refresh X performance metrics
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
