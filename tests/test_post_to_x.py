@@ -98,7 +98,7 @@ class AiTests(unittest.TestCase):
 
     def test_ai_generation_success(self):
         response = Mock(status_code=200)
-        response.json.return_value = {"output_text": "朝の光を感じながら、できることを一つずつ丁寧に始める時間を大切にします。"}
+        response.json.return_value = {"candidates": [{"content": {"parts": [{"text": "朝の光を感じながら、できることを一つずつ丁寧に始める時間を大切にします。"}]}}]}
         session = Mock(); session.post.return_value = response
         text = post_to_x.generate_ai_post("朝", "secret", [], session)
         self.assertTrue(text.startswith("朝の"))
@@ -108,7 +108,7 @@ class AiTests(unittest.TestCase):
         session = Mock(); session.post.return_value = response
         with tempfile.TemporaryDirectory() as directory, patch.object(post_to_x, "POSTS_FILE", Path(directory) / "posts.txt"), patch.object(post_to_x, "HISTORY_FILE", Path(directory) / "history.json"):
             post_to_x.POSTS_FILE.write_text("固定の投稿文です。今日も無理せず過ごします。\n", encoding="utf-8")
-            text, dry = post_to_x.choose_post({"OPENAI_API_KEY": "key", "AI_DRY_RUN": "true"}, datetime(2026, 1, 1, 8), session)
+            text, dry = post_to_x.choose_post({"GEMINI_API_KEY": "key", "AI_DRY_RUN": "true"}, datetime(2026, 1, 1, 8), session)
         self.assertEqual(text, "固定の投稿文です。今日も無理せず過ごします。")
         self.assertTrue(dry)
 

@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent
 POSTS_FILE = BASE_DIR / "posts.txt"
 STATE_FILE = BASE_DIR / ".state" / "last_post.sha256"
 HISTORY_FILE = BASE_DIR / ".state" / "post_history.json"
-OPENAI_API_URL = "https://api.openai.com/v1/responses"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 REQUIRED_SECRETS = (
     "X_API_KEY",
     "X_API_SECRET",
@@ -31,7 +31,7 @@ REQUIRED_SECRETS = (
     "X_ACCESS_TOKEN_SECRET",
 )
 REQUEST_TIMEOUT_SECONDS = 30
-AI_MODEL = "gpt-4o-mini"
+AI_MODEL = "gemini-2.5-flash-lite"
 LOG = logging.getLogger("x_auto_post")
 
 
@@ -257,18 +257,13 @@ def generate_ai_post(period: str, api_key: str, history: list[str], session: req
               "本文だけを返し、引用符や説明は付けないでください。")
     client = session or requests.Session()
     try:
-        response = client.post(OPENAI_API_URL, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                               json={"model": AI_MODEL, "input": prompt, "store": False}, timeout=REQUEST_TIMEOUT_SECONDS)
+        url = f"{GEMINI_API_BASE}/{AI_MODEL}:generateContent"
+        response = client.post(url, params={"key": api_key}, headers={"Content-Type": "application/json"},
+                               json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8, "maxOutputTokens": 120}}, timeout=REQUEST_TIMEOUT_SECONDS)
         if response.status_code != 200:
-            raise AutoPostError(f"AI APIエラー: HTTP {response.status_code}")
+            raise AutoPostError(f"Gemini APIエラー: HTTP {response.status_code}")
         payload = response.json()
-        text = payload.get("output_text", "").strip()
-        if not text:
-            for item in payload.get("output", []):
-                for content in item.get("content", []):
-                    if content.get("type") == "output_text":
-                        text = content.get("text", "").strip()
-                        break
+        text = payload["candidates"][0]["content"]["parts"][0]["text"].strip()
         if not text or not (30 <= len(text) <= 100) or too_similar(text, history):
             raise AutoPostError("AI生成文が条件不適合または履歴と類似しています")
         return text
@@ -282,9 +277,9 @@ def choose_post(environment: Mapping[str, str], now: datetime, session: requests
     posts = load_posts(POSTS_FILE)
     history = load_history(HISTORY_FILE)
     dry_run = environment.get("AI_DRY_RUN", "true").strip().lower() != "false"
-    api_key = environment.get("OPENAI_API_KEY", "").strip()
+    api_key = environment.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        LOG.warning("OPENAI_API_KEYが未設定のため、固定文へフォールバックします")
+        LOG.warning("GEMINI_API_KEYが未設定のため、固定文へフォールバックします")
         last = post_digest(history[-1]) if history else None
         return select_post(posts, last).text, dry_run
     period = posting_period(now.hour)
