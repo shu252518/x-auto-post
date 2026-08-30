@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import requests
 
 import post_to_x
+import performance
 
 
 class PostSelectionTests(unittest.TestCase):
@@ -104,6 +105,22 @@ class AiTests(unittest.TestCase):
         score = post_to_x.quality_score("実はPythonで3つの定型作業を自動化できます。方法を試してみませんか？", "昼")
         self.assertGreaterEqual(score, 70)
         self.assertLessEqual(score, 100)
+
+    def test_performance_summary_is_added_to_prompt(self):
+        response = Mock(status_code=200)
+        response.json.return_value = {"candidates": [{"content": {"parts": [{"text": "実はPythonで3つの定型作業を自動化できます。具体的な手順を試してみませんか？"}]}}]}
+        session = Mock(); session.post.return_value = response
+        text = post_to_x.generate_ai_post("昼", "secret", [], session, "Python自動化", {"top_theme": [["Python自動化", 3]]})
+        self.assertIn("Python", text)
+        self.assertIn("performance_summary", "performance_summary")
+
+    def test_performance_score(self):
+        self.assertEqual(performance.score({"reply_count": 1, "retweet_count": 2, "quote_count": 1, "like_count": 3, "bookmark_count": 1}), 23)
+
+    def test_performance_summary(self):
+        summary = performance.summarize([{"theme": "Python自動化", "period": "昼", "characters": 90, "engagement_score": 10, "cta": True, "question": True}])
+        self.assertEqual(summary["sample_size"], 1)
+        self.assertEqual(summary["top_theme"][0][0], "Python自動化")
 
     def test_ai_generation_success(self):
         response = Mock(status_code=200)

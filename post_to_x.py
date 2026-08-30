@@ -23,6 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent
 POSTS_FILE = BASE_DIR / "posts.txt"
 STATE_FILE = BASE_DIR / ".state" / "last_post.sha256"
 HISTORY_FILE = BASE_DIR / ".state" / "post_history.json"
+PERFORMANCE_SUMMARY_FILE = BASE_DIR / ".state" / "performance_summary.json"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 REQUIRED_SECRETS = (
     "X_API_KEY",
@@ -33,6 +34,7 @@ REQUIRED_SECRETS = (
 REQUEST_TIMEOUT_SECONDS = 30
 AI_MODEL = "gemini-3.1-flash-lite"
 THEMES = ("ChatGPT活用", "Gemini活用", "Excel効率化", "Python自動化", "GitHub Actions", "仕事の自動化", "資料作成効率化", "メール効率化", "会議効率化", "タスク管理", "AI時代の働き方")
+LAST_GENERATION_META: dict[str, object] = {}
 LOG = logging.getLogger("x_auto_post")
 
 
@@ -225,7 +227,7 @@ def load_history(path: Path, limit: int = 100) -> list[str]:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, list):
             return []
-        return [str(item) for item in data if isinstance(item, str)][-limit:]
+        return [item.get("text", "") if isinstance(item, dict) else str(item) for item in data if isinstance(item, str) or isinstance(item, dict)][-limit:]
     except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
         return []
 
@@ -235,6 +237,17 @@ def save_history(path: Path, text: str, limit: int = 100) -> None:
     history.append(text)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(history[-limit:], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def save_post_record(path: Path, record: Mapping[str, object], limit: int = 300) -> None:
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        records = existing if isinstance(existing, list) else []
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        records = []
+    records.append(dict(record))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(records[-limit:], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def too_similar(candidate: str, history: list[str], threshold: float = 0.78) -> bool:
@@ -276,7 +289,7 @@ def gemini_error_message(response: requests.Response, api_key: str) -> str:
     return message[:500] if message else "詳細メッセージなし"
 
 
-def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None, theme: str | None = None) -> str:
+def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None, theme: str | None = None, performance_summary: Mapping[str, object] | None = None) -> str:
     theme = theme or select_theme(history)
     length = "40〜100文字" if period == "朝" else "70〜180文字"
     prompt = (f"{period}向け、テーマは{theme}。専門家ぶりすぎず、実際にXで人間が投稿する自然な日本語を1件だけ作成してください。"
@@ -286,6 +299,8 @@ def generate_ai_post(period: str, api_key: str, history: list[str], session: req
               "朝は短い役立ち知識、昼は手順や具体例、夜は意見や自然な問いかけ。"
               "中身のない挨拶、過度な煽り、架空の実績、実体験の偽装は禁止。"
               "本文だけを返し、引用符や説明は付けないでください。")
+    if performance_summary:
+        prompt += f"過去の高成績傾向（丸コピーや同じHookは禁止）: {json.dumps(performance_summary, ensure_ascii=False)}。参考にするのは生成の80%、残り20%は新しい表現を試してください。"
     client = session or requests.Session()
     try:
         url = f"{GEMINI_API_BASE}/{AI_MODEL}:generateContent"
@@ -314,24 +329,32 @@ def choose_post(environment: Mapping[str, str], now: datetime, session: requests
     dry_run = environment.get("AI_DRY_RUN", "true").strip().lower() != "false"
     period = posting_period(now.hour)
     theme = select_theme(history)
+    try:
+        performance_summary = json.loads(PERFORMANCE_SUMMARY_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        performance_summary = None
     api_key = environment.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         LOG.warning("GEMINI_API_KEYが未設定のため、固定文へフォールバックします")
         last = post_digest(history[-1]) if history else None
         fallback = select_post(posts, last).text
+        LAST_GENERATION_META.update(period=period, theme=theme, quality_score=None, source="fallback", duplicate_check="fallback")
         LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=n/a duplicate_check=fallback source=fallback", period, theme, len(fallback))
         return fallback, dry_run
     for attempt in range(3):
         try:
-            text = generate_ai_post(period, api_key, history, session, theme)
-            LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=%d duplicate_check=pass source=ai", period, theme, len(text), quality_score(text, period))
+            text = generate_ai_post(period, api_key, history, session, theme, performance_summary)
+            mode = "exploitation" if secrets.randbelow(100) < 80 and performance_summary else "exploration"
+            LAST_GENERATION_META.update(period=period, theme=theme, quality_score=quality_score(text, period), source="ai", duplicate_check="pass", mode=mode)
+            LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=%d duplicate_check=pass source=ai mode=%s", period, theme, len(text), quality_score(text, period), mode)
             return text, dry_run
         except AutoPostError as exc:
             LOG.warning("AI生成%d回目に失敗: %s", attempt + 1, exc)
     LOG.warning("AI生成を3回試行したため、固定文へフォールバックします")
     last = post_digest(history[-1]) if history else None
     fallback = select_post(posts, last).text
-    LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=n/a duplicate_check=fallback source=fallback", period, theme, len(fallback))
+    LAST_GENERATION_META.update(period=period, theme=theme, quality_score=None, source="fallback", duplicate_check="fallback", mode="fallback")
+    LOG.info("生成 metadata: period=%s theme=%s characters=%d quality_score=n/a duplicate_check=fallback source=fallback mode=fallback", period, theme, len(fallback))
     return fallback, dry_run
 
 
@@ -347,7 +370,8 @@ def main() -> int:
             return 0
         post_id = publish_post(selected, credentials)
         save_last_digest(STATE_FILE, selected.digest)
-        save_history(HISTORY_FILE, generated)
+        record = {"post_id": post_id, "posted_at": datetime.now(ZoneInfo("Asia/Tokyo")).isoformat(), "text": generated, "characters": len(generated), **LAST_GENERATION_META}
+        save_post_record(HISTORY_FILE, record)
         LOG.info("投稿に成功しました: post_id=%s", post_id)
         return 0
     except AutoPostError as exc:
