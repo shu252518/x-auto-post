@@ -33,7 +33,7 @@ REQUIRED_SECRETS = (
 )
 REQUEST_TIMEOUT_SECONDS = 30
 AI_MODEL = "gemini-3.1-flash-lite"
-THEMES = ("ChatGPT活用", "Gemini活用", "Excel効率化", "Python自動化", "GitHub Actions", "仕事の自動化", "資料作成効率化", "メール効率化", "会議効率化", "タスク管理", "AI時代の働き方")
+THEMES = ("貞観政要", "論語", "孫子", "韓非子", "菜根譚", "老子", "荘子", "孟子", "大学", "中庸", "君主論", "自省録")
 LAST_GENERATION_META: dict[str, object] = {}
 LOG = logging.getLogger("x_auto_post")
 
@@ -271,12 +271,12 @@ def select_theme(history: list[str]) -> str:
 
 
 def quality_score(text: str, period: str) -> int:
-    hook = 20 if any(mark in text[:35] for mark in ("？", "?", "なら", "実は", "意外", "知って")) else 12
-    value = 25 if any(mark in text for mark in ("手順", "方法", "具体", "使う", "減ら", "自動", "例")) else 12
-    specificity = 20 if any(char.isdigit() for char in text) or any(mark in text for mark in ("Excel", "Python", "AI", "GitHub", "メール")) else 10
-    natural = 15 if len(text) >= 45 and "することが重要です" not in text else 8
-    engagement = 20 if ("？" in text or "?" in text or "ありますか" in text) else 10
-    return min(100, hook + value + specificity + natural + engagement)
+    hook = 30 if any(mark in text[:45] for mark in ("？", "?", "なら", "実は", "意外", "ほど", "強い", "危険")) else 18
+    learning = 25 if (any(book in text for book in THEMES) or any(mark in text for mark in ("方法", "手順", "知恵", "教え"))) and len(text) >= 45 else 12
+    application = 20 if any(mark in text for mark in ("仕事", "職場", "部下", "上司", "人間関係", "組織", "リーダー")) else 10
+    specificity = 15 if any(char.isdigit() for char in text) or any(mark in text for mark in ("まず", "反対意見", "失敗", "勝つ")) else 8
+    natural = 10 if "することが重要です" not in text and len(text) >= 45 else 5
+    return min(100, hook + learning + application + specificity + natural)
 
 
 def gemini_error_message(response: requests.Response, api_key: str) -> str:
@@ -291,13 +291,12 @@ def gemini_error_message(response: requests.Response, api_key: str) -> str:
 
 def generate_ai_post(period: str, api_key: str, history: list[str], session: requests.Session | None = None, theme: str | None = None, performance_summary: Mapping[str, object] | None = None) -> str:
     theme = theme or select_theme(history)
-    length = "40〜100文字" if period == "朝" else "70〜180文字"
-    prompt = (f"{period}向け、テーマは{theme}。専門家ぶりすぎず、実際にXで人間が投稿する自然な日本語を1件だけ作成してください。"
-              f"{length}、Hook→具体的なValueの構成。"
+    length = {"朝": "60〜120文字", "昼": "90〜180文字", "夜": "100〜220文字"}.get(period, "60〜120文字")
+    prompt = (f"{period}向け、書名『{theme}』を軸に、古典の考え方を自分の言葉で要約し現代の仕事・人間関係・リーダーシップへつなげた投稿を1件だけ作成してください。"
+              f"{length}、Hook→古典の学び→現代への応用（必要なら自然な問い）の構成。専門家ぶりすぎず、実際にXで人間が投稿する自然な日本語にしてください。"
               "宣伝なし、ハッシュタグなし、絵文字は最大1個。"
-              "政治・宗教・差別・攻撃・ニュース・日付曜日・医療投資の断定は禁止。"
-              "朝は短い役立ち知識、昼は手順や具体例、夜は意見や自然な問いかけ。"
-              "中身のない挨拶、過度な煽り、架空の実績、実体験の偽装は禁止。"
+              "架空の原文引用・架空の出典・章名の断定・翻訳文の転載、政治・宗教勧誘・差別・攻撃・ニュース・日付曜日・医療投資の断定は禁止。"
+              "中身のない挨拶、過度な煽り、架空の実績、実体験の偽装は禁止。書名は確実な場合だけ明記し、本文は要約・現代語化してください。"
               "本文だけを返し、引用符や説明は付けないでください。")
     if performance_summary:
         prompt += f"過去の高成績傾向（丸コピーや同じHookは禁止）: {json.dumps(performance_summary, ensure_ascii=False)}。参考にするのは生成の80%、残り20%は新しい表現を試してください。"
@@ -310,11 +309,11 @@ def generate_ai_post(period: str, api_key: str, history: list[str], session: req
             raise AutoPostError(f"Gemini APIエラー: HTTP {response.status_code}, message={gemini_error_message(response, api_key)}")
         payload = response.json()
         text = payload["candidates"][0]["content"]["parts"][0]["text"].strip()
-        max_length = 100 if period == "朝" else 180
+        max_length = {"朝": 120, "昼": 180, "夜": 220}.get(period, 120)
         if not text or not (40 <= len(text) <= max_length) or too_similar(text, history):
             raise AutoPostError("AI生成文が条件不適合または履歴と類似しています")
         score = quality_score(text, period)
-        if score < 70:
+        if score < 75:
             raise AutoPostError(f"品質スコア不足: {score}")
         return text
     except requests.RequestException as exc:
