@@ -58,7 +58,7 @@ jobs:
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          AI_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && (inputs.ai_dry_run == true && 'true' || 'false') || 'true' }}
+          AI_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && (inputs.ai_dry_run == true && 'true' || 'false') || 'false' }}
         run: python post_to_x.py
 
       - name: Save last-post state
