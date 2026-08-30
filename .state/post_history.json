@@ -11,5 +11,17 @@
     "source": "ai",
     "duplicate_check": "pass",
     "mode": "exploration"
+  },
+  {
+    "post_id": "2094065446160929005",
+    "posted_at": "2026-08-30T23:11:23.021452+09:00",
+    "text": "Excelで毎日同じ集計作業を繰り返すの、そろそろ卒業しませんか。関数を複雑にするより、パワークエリを一度触る方が圧倒的に楽だしミスも減りますよ。最初は難しく感じるかもしれないけど、慣れると手作業には戻れなくなる便利さがある。皆さんは自動化で何が一番変わりましたか？🌙",
+    "characters": 134,
+    "period": "夜",
+    "theme": "Excel効率化",
+    "quality_score": 92,
+    "source": "ai",
+    "duplicate_check": "pass",
+    "mode": "exploitation"
   }
 ]
