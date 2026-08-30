@@ -15,7 +15,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: x-auto-post
@@ -48,13 +48,16 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --requirement requirements.txt
 
-      - name: Restore last-post state
+      - name: Restore cache (optional acceleration)
         uses: actions/cache/restore@v5
         with:
           path: .state
           key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             x-post-state-
+
+      - name: Restore canonical state branch
+        run: python state_branch.py restore
 
       - name: Post to X
         id: post
@@ -74,6 +77,10 @@ jobs:
           path: .state
           key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Persist canonical state branch
+        if: steps.post.outcome == 'success' && (github.event_name == 'schedule' || inputs.ai_dry_run == false)
+        run: python state_branch.py save
+
   performance:
     if: github.event_name == 'schedule' && github.event.schedule == '0 23 * * *'
     runs-on: ubuntu-latest
@@ -90,6 +97,8 @@ jobs:
           path: .state
           key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: x-post-state-
+      - name: Restore canonical state branch
+        run: python state_branch.py restore
       - name: Refresh X performance metrics
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
@@ -101,3 +110,5 @@ jobs:
         with:
           path: .state
           key: x-post-state-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Persist canonical state branch
+        run: python state_branch.py save

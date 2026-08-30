@@ -52,6 +52,10 @@ AIを使わず固定文だけで運用する場合は、`GEMINI_API_KEY`を登�
 
 将来は自作ツール紹介、アフィリエイト、有料note、テンプレート販売、Xサブスクリプション、小型SaaSへの導線を追加できます。現段階では商品リンクや宣伝を入れず、専門アカウントとしての信頼形成を優先します。
 
+## 学習データの永続化
+
+投稿履歴と性能要約の正本は、ソースコード用の`main`とは分離した`state`ブランチに保存します。Actions開始時に`state`ブランチから`.state`を復元し、投稿成功後または23:00の性能更新後に、許可リスト（`post_history.json`、`performance_summary.json`、`last_post.sha256`、`theme_history.json`）だけをstateブランチへ保存します。APIキーやSecretsは保存しません。stateブランチが未作成、またはcacheが消失した場合も空状態から継続できます。stateブランチのpushにはworkflowの最小権限`contents: write`を使用します。
+
 ## 3. 投稿文の編集
 
 `posts.txt` をUTF-8で編集し、1行につき1投稿を記載します。空行は無視されます。

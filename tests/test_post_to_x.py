@@ -9,6 +9,7 @@ import requests
 
 import post_to_x
 import performance
+import state_branch
 
 
 class PostSelectionTests(unittest.TestCase):
@@ -121,6 +122,11 @@ class AiTests(unittest.TestCase):
         summary = performance.summarize([{"theme": "Python自動化", "period": "昼", "characters": 90, "engagement_score": 10, "cta": True, "question": True}])
         self.assertEqual(summary["sample_size"], 1)
         self.assertEqual(summary["top_theme"][0][0], "Python自動化")
+
+    def test_state_branch_allowlist_excludes_secrets(self):
+        self.assertIn("post_history.json", state_branch.ALLOWED)
+        self.assertNotIn("GEMINI_API_KEY", state_branch.ALLOWED)
+        self.assertNotIn("X_API_SECRET", state_branch.ALLOWED)
 
     def test_ai_generation_success(self):
         response = Mock(status_code=200)
