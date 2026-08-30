@@ -275,7 +275,7 @@ def quality_score(text: str, period: str) -> int:
     learning = 25 if (any(book in text for book in THEMES) or any(mark in text for mark in ("方法", "手順", "知恵", "教え"))) and len(text) >= 45 else 12
     application = 20 if any(mark in text for mark in ("仕事", "職場", "部下", "上司", "人間関係", "組織", "リーダー")) else 10
     specificity = 15 if any(char.isdigit() for char in text) or any(mark in text for mark in ("まず", "反対意見", "失敗", "勝つ")) else 8
-    natural = 10 if "することが重要です" not in text and len(text) >= 45 else 5
+    natural = 10 if "することが重要です" not in text and len(text) >= 40 else 5
     return min(100, hook + learning + application + specificity + natural)
 
 
