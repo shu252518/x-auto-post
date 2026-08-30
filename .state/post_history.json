@@ -23,5 +23,17 @@
     "source": "ai",
     "duplicate_check": "pass",
     "mode": "exploitation"
+  },
+  {
+    "post_id": "2094202653526168064",
+    "posted_at": "2026-08-31T08:16:35.764722+09:00",
+    "text": "『論語』の学びは、知識を増やすだけでは終わりません。学んだことを一つ試し、結果を振り返って初めて自分の知恵になります。",
+    "characters": 59,
+    "period": "朝",
+    "theme": "論語",
+    "quality_score": null,
+    "source": "fallback",
+    "duplicate_check": "fallback",
+    "mode": "fallback"
   }
 ]
