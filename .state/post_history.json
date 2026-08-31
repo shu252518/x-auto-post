@@ -71,5 +71,17 @@
     },
     "engagement_score": 0,
     "engagement_rate": 0.0
+  },
+  {
+    "post_id": "2094565134651854901",
+    "posted_at": "2026-09-01T08:16:58.069798+09:00",
+    "text": "失敗した時に言い訳を探すと、学びが遅れます。『自省録』のように事実と感情を分けて振り返ると、次の一手が具体的になります。",
+    "characters": 60,
+    "period": "朝",
+    "theme": "荘子",
+    "quality_score": null,
+    "source": "fallback",
+    "duplicate_check": "fallback",
+    "mode": "fallback"
   }
 ]
