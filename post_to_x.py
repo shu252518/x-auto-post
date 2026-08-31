@@ -8,6 +8,7 @@ import logging
 import os
 import secrets
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -222,6 +223,29 @@ def diagnose_x_auth(credentials: Mapping[str, str], session: requests.Session | 
     elif response.status_code == 403: LOG.error("認証は認識されているが、この操作へのアクセスが拒否されています。App権限またはアカウント制限を確認してください。")
     return False
 
+def diagnose_x_post(credentials: Mapping[str, str], confirm: bool, session: requests.Session | None = None) -> bool:
+    """Check identity and, only when confirmed, perform one explicit write test."""
+    if not diagnose_x_auth(credentials, session):
+        return False
+    if not confirm:
+        LOG.info("投稿診断: confirm_test_post=false のためテスト投稿は実行しません")
+        return True
+    client = session or requests.Session()
+    auth = OAuth1(credentials["X_API_KEY"], credentials["X_API_SECRET"], credentials["X_ACCESS_TOKEN"], credentials["X_ACCESS_TOKEN_SECRET"])
+    try:
+        response = client.post(API_URL, json={"text": "X API write permission test"}, auth=auth, timeout=REQUEST_TIMEOUT_SECONDS)
+    except requests.RequestException as exc:
+        LOG.error("投稿診断の接続に失敗しました: %s", redact(str(exc), credentials)); return False
+    if response.status_code == 201:
+        LOG.info("投稿診断: HTTP 201（認証・書き込み権限正常）"); return True
+    try: body = response.json()
+    except (ValueError, TypeError): body = {}
+    err = body.get("errors", [{}])[0] if isinstance(body.get("errors"), list) else body.get("error", {})
+    LOG.error("投稿診断: HTTP %s, title=%s, detail=%s, type=%s, rate_remaining=%s, request_id=%s", response.status_code, err.get("title", "不明"), err.get("detail", "不明"), err.get("type", "不明"), response.headers.get("x-rate-limit-remaining", "不明"), response.headers.get("x-request-id", "不明"))
+    if response.status_code == 403: LOG.error("X側の書き込み制限、App権限、またはアカウント制限を確認してください")
+    elif response.status_code == 402: LOG.error("X APIクレジット不足の可能性があります")
+    return False
+
 
 def save_last_digest(path: Path, digest: str) -> None:
     try:
@@ -325,8 +349,12 @@ def generate_ai_post(period: str, api_key: str, history: list[str], session: req
     client = session or requests.Session()
     try:
         url = f"{GEMINI_API_BASE}/{AI_MODEL}:generateContent"
-        response = client.post(url, params={"key": api_key}, headers={"Content-Type": "application/json"},
-                               json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8, "maxOutputTokens": 120}}, timeout=REQUEST_TIMEOUT_SECONDS)
+        for retry, delay in enumerate((0, 2, 5)):
+            if delay: time.sleep(delay)
+            response = client.post(url, params={"key": api_key}, headers={"Content-Type": "application/json"},
+                                   json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8, "maxOutputTokens": 120}}, timeout=REQUEST_TIMEOUT_SECONDS)
+            if response.status_code != 503 or retry == 2: break
+            LOG.warning("Gemini API HTTP 503、%d回目の再試行を行います", retry + 1)
         if response.status_code != 200:
             raise AutoPostError(f"Gemini APIエラー: HTTP {response.status_code}, message={gemini_error_message(response, api_key)}")
         payload = response.json()
@@ -383,6 +411,8 @@ def main() -> int:
     configure_logging()
     try:
         credentials = load_credentials(os.environ)
+        if os.environ.get("X_POST_DIAGNOSTIC", "false").lower() == "true":
+            return 0 if diagnose_x_post(credentials, os.environ.get("CONFIRM_TEST_POST", "false").lower() == "true") else 1
         if os.environ.get("X_AUTH_DIAGNOSTIC", "false").strip().lower() == "true":
             return 0 if diagnose_x_auth(credentials) else 1
         generated, dry_run = choose_post(os.environ, datetime.now(ZoneInfo("Asia/Tokyo")))

@@ -18,6 +18,16 @@ on:
         required: true
         default: false
         type: boolean
+      x_post_diagnostic:
+        description: "X書き込み権限を診断する"
+        required: true
+        default: false
+        type: boolean
+      confirm_test_post:
+        description: "診断テスト投稿を実際に送信する"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -74,6 +84,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && (inputs.ai_dry_run == true && 'true' || 'false') || 'false' }}
           X_AUTH_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && (inputs.x_auth_diagnostic == true && 'true' || 'false') || 'false' }}
+          X_POST_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && (inputs.x_post_diagnostic == true && 'true' || 'false') || 'false' }}
+          CONFIRM_TEST_POST: ${{ github.event_name == 'workflow_dispatch' && (inputs.confirm_test_post == true && 'true' || 'false') || 'false' }}
         run: python post_to_x.py
 
       - name: Save last-post state
