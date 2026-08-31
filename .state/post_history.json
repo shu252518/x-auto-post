@@ -10,7 +10,19 @@
     "quality_score": 82,
     "source": "ai",
     "duplicate_check": "pass",
-    "mode": "exploration"
+    "mode": "exploration",
+    "metrics": {
+      "bookmark_count": 0,
+      "impression_count": 5,
+      "like_count": 0,
+      "quote_count": 0,
+      "reply_count": 0,
+      "retweet_count": 0,
+      "engagements": 0,
+      "user_profile_clicks": 0
+    },
+    "engagement_score": 0,
+    "engagement_rate": 0.0
   },
   {
     "post_id": "2094065446160929005",
@@ -22,7 +34,19 @@
     "quality_score": 92,
     "source": "ai",
     "duplicate_check": "pass",
-    "mode": "exploitation"
+    "mode": "exploitation",
+    "metrics": {
+      "bookmark_count": 0,
+      "impression_count": 7,
+      "like_count": 0,
+      "quote_count": 0,
+      "reply_count": 0,
+      "retweet_count": 0,
+      "engagements": 0,
+      "user_profile_clicks": 0
+    },
+    "engagement_score": 0,
+    "engagement_rate": 0.0
   },
   {
     "post_id": "2094202653526168064",
@@ -34,6 +58,18 @@
     "quality_score": null,
     "source": "fallback",
     "duplicate_check": "fallback",
-    "mode": "fallback"
+    "mode": "fallback",
+    "metrics": {
+      "bookmark_count": 0,
+      "impression_count": 2,
+      "like_count": 0,
+      "quote_count": 0,
+      "reply_count": 0,
+      "retweet_count": 0,
+      "engagements": 0,
+      "user_profile_clicks": 0
+    },
+    "engagement_score": 0,
+    "engagement_rate": 0.0
   }
 ]

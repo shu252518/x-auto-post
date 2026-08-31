@@ -1,22 +1,36 @@
 {
-  "sample_size": 1,
+  "sample_size": 3,
   "top_theme": [
     [
       "会議効率化",
+      1
+    ],
+    [
+      "Excel効率化",
+      1
+    ],
+    [
+      "論語",
       1
     ]
   ],
   "top_period": [
     [
       "夜",
+      2
+    ],
+    [
+      "朝",
       1
     ]
   ],
   "top_lengths": [
-    125
+    125,
+    134,
+    59
   ],
   "top_cta": [],
   "top_question": [],
   "average_engagement": 0.0,
-  "updated_at": "2026-08-30T14:08:17.018232+00:00"
+  "updated_at": "2026-08-31T14:08:27.661296+00:00"
 }
