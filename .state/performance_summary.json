@@ -1,5 +1,5 @@
 {
-  "sample_size": 3,
+  "sample_size": 4,
   "top_theme": [
     [
       "会議効率化",
@@ -21,16 +21,17 @@
     ],
     [
       "朝",
-      1
+      2
     ]
   ],
   "top_lengths": [
     125,
     134,
-    59
+    59,
+    60
   ],
   "top_cta": [],
   "top_question": [],
   "average_engagement": 0.0,
-  "updated_at": "2026-08-31T14:08:27.661296+00:00"
+  "updated_at": "2026-09-01T14:15:36.225975+00:00"
 }
