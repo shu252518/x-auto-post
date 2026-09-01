@@ -95,5 +95,17 @@
     },
     "engagement_score": 0,
     "engagement_rate": 0.0
+  },
+  {
+    "post_id": "2094928020909760887",
+    "posted_at": "2026-09-02T08:18:56.900154+09:00",
+    "text": "『老子』は、力で押し通さないリーダーの姿を考えさせます。任せる勇気がある人ほど、チームの力を引き出せます。",
+    "characters": 53,
+    "period": "朝",
+    "theme": "大学",
+    "quality_score": null,
+    "source": "fallback",
+    "duplicate_check": "fallback",
+    "mode": "fallback"
   }
 ]
