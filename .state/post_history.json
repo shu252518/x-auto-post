@@ -119,5 +119,17 @@
     },
     "engagement_score": 0,
     "engagement_rate": 0.0
+  },
+  {
+    "post_id": "2095290702234308736",
+    "posted_at": "2026-09-03T08:20:06.809271+09:00",
+    "text": "他人を変えるより、まず自分の器を磨く。書名『大学』には、自分を整えることが、結果として周囲を動かす近道だと書かれています。仕事の成果やチームの統率も、結局は自分の心構え次第。まずは自分の足元を正すことから始めてみませんか。☀️",
+    "characters": 113,
+    "period": "朝",
+    "theme": "大学",
+    "quality_score": 88,
+    "source": "ai",
+    "duplicate_check": "pass",
+    "mode": "exploitation"
   }
 ]
