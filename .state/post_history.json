@@ -143,5 +143,17 @@
     },
     "engagement_score": 0,
     "engagement_rate": null
+  },
+  {
+    "post_id": "2095652990770106479",
+    "posted_at": "2026-09-04T08:19:43.141614+09:00",
+    "text": "『自省録』のように、感情が強い時ほど判断を一晩置く。返信を急がないだけで摩擦を避けられます。",
+    "characters": 46,
+    "period": "朝",
+    "theme": "論語",
+    "quality_score": null,
+    "source": "fallback",
+    "duplicate_check": "fallback",
+    "mode": "fallback"
   }
 ]
