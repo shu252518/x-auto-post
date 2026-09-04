@@ -167,5 +167,17 @@
     },
     "engagement_score": 0,
     "engagement_rate": null
+  },
+  {
+    "post_id": "2096015318367797331",
+    "posted_at": "2026-09-05T08:19:28.766415+09:00",
+    "text": "古典を読む面白さは、昔の答えをそのまま使うことではありません。今の仕事に置き換え、何が残るかを考えることです。",
+    "characters": 55,
+    "period": "朝",
+    "theme": "君主論",
+    "quality_score": null,
+    "source": "fallback",
+    "duplicate_check": "fallback",
+    "mode": "fallback"
   }
 ]
