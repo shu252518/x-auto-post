@@ -178,6 +178,18 @@
     "quality_score": null,
     "source": "fallback",
     "duplicate_check": "fallback",
-    "mode": "fallback"
+    "mode": "fallback",
+    "metrics": {
+      "bookmark_count": 0,
+      "impression_count": 0,
+      "like_count": 0,
+      "quote_count": 0,
+      "reply_count": 0,
+      "retweet_count": 0,
+      "engagements": 0,
+      "user_profile_clicks": 0
+    },
+    "engagement_score": 0,
+    "engagement_rate": null
   }
 ]

@@ -1,5 +1,5 @@
 {
-  "sample_size": 7,
+  "sample_size": 8,
   "top_theme": [
     [
       "論語",
@@ -17,7 +17,7 @@
   "top_period": [
     [
       "朝",
-      5
+      6
     ],
     [
       "夜",
@@ -31,10 +31,11 @@
     60,
     53,
     113,
-    46
+    46,
+    55
   ],
   "top_cta": [],
   "top_question": [],
   "average_engagement": 0.0,
-  "updated_at": "2026-09-04T14:15:10.711963+00:00"
+  "updated_at": "2026-09-05T14:14:04.155696+00:00"
 }
